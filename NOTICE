@@ -1,0 +1,18 @@
+ziplac
+Copyright 2026 ci7lus
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This project implements ZIP signing and verification using the APK Signature
+Scheme v2 block format.
+
+The implementation was written with reference to the Android Open Source
+Project documentation and the AOSP apksig reference implementation:
+
+  https://source.android.com/docs/security/features/apksigning/v2
+  https://android.googlesource.com/platform/tools/apksig/
+
+Android Open Source Project materials are licensed under the Apache License,
+Version 2.0, unless otherwise noted by the Android Open Source Project.
+
+No AOSP source files are vendored in this repository.
