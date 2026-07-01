@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create, for example v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  release:
+    name: Build, attest, and release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          targets=(
+            "linux amd64"
+            "linux arm64"
+            "darwin amd64"
+            "darwin arm64"
+            "windows amd64"
+            "windows arm64"
+          )
+
+          for target in "${targets[@]}"; do
+            read -r goos goarch <<< "$target"
+            ext=""
+            if [[ "$goos" == "windows" ]]; then
+              ext=".exe"
+            fi
+
+            output="dist/ziplac-${goos}-${goarch}${ext}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags="-s -w" -o "$output" .
+          done
+
+          (cd dist && sha256sum ./* > SHA256SUMS)
+
+      - name: Attest binaries
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/ziplac-linux-amd64
+            dist/ziplac-linux-arm64
+            dist/ziplac-darwin-amd64
+            dist/ziplac-darwin-arm64
+            dist/ziplac-windows-amd64.exe
+            dist/ziplac-windows-arm64.exe
+
+      - name: Create tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists" >&2
+            exit 1
+          fi
+
+          git tag "${TAG}"
+          git push origin "refs/tags/${TAG}"
+
+      - name: Create GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "${TAG}" dist/* \
+            --title "${TAG}" \
+            --notes "Release ${TAG}" \
+            --verify-tag
